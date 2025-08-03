@@ -1,0 +1,4 @@
+.o_form_view .oe_avatar > img {
+    max-width: 190px;
+    max-height: 190px;
+}

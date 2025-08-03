@@ -1,0 +1,143 @@
+from odoo import models,fields,api,_
+import json
+import base64
+import urllib
+import logging
+import requests,http
+
+from odoo.http import request
+import firebase_admin
+from firebase_admin import messaging
+from firebase_admin._messaging_utils import UnregisteredError
+
+_logger = logging.getLogger(__name__)
+
+class EventCategory(models.Model):
+    _name = 'event.category'
+    _description = 'Event Category'
+
+    name = fields.Char()
+
+
+class ShootingEvent(models.Model):
+    _name = 'shooting.event'
+    _description = 'Shooting Events'
+    _rec_name = 'reference'
+
+    reference = fields.Char(string='Reference', default='/', readonly=True)
+    title = fields.Char()
+    amount = fields.Float()
+    description = fields.Html()
+    sequence = fields.Integer()
+    image = fields.Binary()
+    coach_name = fields.Char()
+    start_date = fields.Date()
+    end_date = fields.Date()
+    category_id = fields.Many2one('event.category')
+    booking_status_ids = fields.One2many('event.payment', 'event_id')
+    is_completed = fields.Boolean()
+    event_link = fields.Char()
+    venue = fields.Text()
+    time = fields.Char()
+    map = fields.Char()
+    program_presenters = fields.Char()
+    presised_by = fields.Char()
+    chief_guest = fields.Char()
+    note = fields.Text()
+    attachments_ids = fields.Many2many('ir.attachment', public=True)
+    complete_event_ids = fields.One2many('event.complete.image', 'event_id')
+    images_note = fields.Char(default='Square (1:1) or 16:4 or 16:6')
+
+
+    def action_completed_event(self):
+        for rec in self:
+            rec.is_completed = True
+
+    @api.model
+    def create(self, vals):
+        if not vals.get('reference') or vals['reference'] == _('/'):
+            vals['reference'] = self.env['ir.sequence'].next_by_code('shooting.event') or _('/')
+        if vals.get('title'):
+            title = str(vals.get('title')) or ''
+            body = str(vals.get('title')) or ''
+            category_id = str(vals.get('category_id')) or ''
+        else:
+            title = 'New Event created'
+            body = 'Event created'
+            category_id = ''
+        title = 'Event Added'
+        source = 'SICA Event'
+        self.update_notification(title, body, category_id, source)
+        return super(ShootingEvent, self).create(vals)
+
+    # def update_notification(self, title, body, category_id, source):
+    #     send = self.env['push.notification.log.history'].sudo().create({
+    #         'source': 'SICA Event',
+    #         'date_send': fields.Datetime.now(),
+    #     })
+    #     send_id = "https://new.thesica.in/homepage/eventtabbar/eventdetails/:"+title+"?category_id="+category_id
+    #     if send:
+    #         send.send_notification(title, body, source, send_id)
+
+    print("TE1111111111111111111111111111111111111111111111111111111111")
+    def update_notification(self, title, body, category_id, source):
+        _logger.info(f"Sending event push: {title} - {category_id}")
+        
+        # Log push event
+        self.env['push.notification.log.history'].sudo().create({
+            'source': source,
+            'date_send': fields.Datetime.now(),
+        })
+
+        # Build event link
+        send_id = f"https://new.thesica.in/homepage/eventtabbar/eventdetails/:{title}?category_id={category_id}"
+
+        # Get members with FCM tokens
+        members = self.env['res.member'].sudo().search([('token', '!=', False)])
+
+        for member in members:
+            try:
+                message = messaging.Message(
+                    token=member.token,
+                    notification=messaging.Notification(
+                        title=title,
+                        body=body,
+                    ),
+                    data={"url": send_id}
+                )
+                response = messaging.send(message)
+                _logger.info(f"Event Push sent to {member.name} ({member.membership_no}): {response}")
+            except UnregisteredError:
+                _logger.warning(f"Unregistered token: {member.name}")
+                member.token = False
+            except Exception as e:
+                _logger.error(f"Failed to send to {member.name}: {str(e)}")
+
+
+class ShootingPaymentStatus(models.Model):
+    _name = 'event.payment'
+    _description = 'Events Payment'
+
+    event_id = fields.Many2one('shooting.event')
+    member_id = fields.Many2one('res.member')
+    payment_status = fields.Selection([
+        ('Paid', 'Paid'),
+        ('Failed', 'Failed'),
+        ('Not Paid', 'Not Paid'),
+        ('refund', 'Refund')
+    ])
+    booking_status = fields.Selection([
+        ('Booked', 'Booked'),
+        ('Cancelled', 'Cancelled')
+    ])
+    reason = fields.Char()
+
+class CompleteEventDetails(models.Model):
+    _name = 'event.complete.image'
+    _description = 'Events Complete Details'
+
+    event_id = fields.Many2one('shooting.event')
+    attachments_ids = fields.Many2many('ir.attachment', public=True)
+
+
+
