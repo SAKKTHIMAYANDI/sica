@@ -33,6 +33,7 @@ class ShootingEvent(models.Model):
     coach_name = fields.Char()
     start_date = fields.Date()
     end_date = fields.Date()
+    media_ids = fields.One2many('shooting.event.media', 'event_id', string='Media Files')
     category_id = fields.Many2one('event.category')
     booking_status_ids = fields.One2many('event.payment', 'event_id')
     is_completed = fields.Boolean()
@@ -141,3 +142,30 @@ class CompleteEventDetails(models.Model):
 
 
 
+class ShootingEventMedia(models.Model):
+    _name = 'shooting.event.media'
+    _description = 'Shooting Event Media'
+    _order = 'sequence'
+
+    event_id = fields.Many2one('shooting.event', string='Shooting Event', ondelete='cascade')
+    file = fields.Binary(string="Media File", required=True, attachment=True)
+    file_name = fields.Char(string="Filename")
+    media_type = fields.Selection(
+        [('image', 'Image'), ('video', 'Video')],
+        string="Media Type",
+        compute='_compute_media_type',
+        store=True,
+        default='image'
+    )
+    sequence = fields.Integer(string="Sequence", default=10)
+
+    @api.depends('file_name')
+    def _compute_media_type(self):
+        for record in self:
+            filename = record.file_name or ''
+            if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+                record.media_type = 'image'
+            elif filename.lower().endswith(('.mp4', '.mov', '.avi')):
+                record.media_type = 'video'
+            else:
+                record.media_type = 'image'  # Default fallback

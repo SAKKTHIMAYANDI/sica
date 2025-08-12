@@ -67,7 +67,7 @@
                                 <field name="date" invisible="1"/>
                                 <field name="medium_id" string="Format"/>
                                 <field name="grade"/>
-                                <field name="experience" invisible="1"/>
+                                <field name="experience"/>
                                 <field name="note"/>
                                 <field name="skill" invisible="1"/>
                             </group>

@@ -126,8 +126,14 @@
         <field name="model">daily.shooting.update</field>
         <field name="arch" type="xml">
             <form string="Shooting Update" duplicate="false">
+
                 <header>
+                    <!-- <button name="action_approve_dop" string="Approve by DoP" type="object" class="btn-primary"
+                            attrs="{'invisible': [('is_dop_approved', '=', True)]}"/> -->
+                    <button name="action_approve_admin" string="Approve by Admin" type="object" class="btn-primary" />
                 </header>
+                <!-- <field name="is_dop_approved" readonly="1"/>
+                <field name="is_admin_approved" readonly="1"/> -->
                 <sheet>
                     <div class="oe_title">
                         <h1>

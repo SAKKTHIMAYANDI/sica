@@ -217,6 +217,7 @@ class CreateJOb(http.Controller):
                                                                      'note': note,
                                                                      'document': document_binary
                                                                      })
+        job_seeker.send_push_to_job_provider()
         return json.dumps({'membership': 'Job seeker Created', 'ID': job_seeker.id})
 
     @http.route('/get/member/job_seeker', type='http', auth='none', methods=['GET'], csrf=False)
@@ -559,6 +560,7 @@ class CreateJOb(http.Controller):
                                                                          'note': note,
 
                                                                          })
+        job_provider.send_push_to_job_seekers()
         return json.dumps({'membership': 'Job Provider Created', 'ID': job_provider.id})
 
     @http.route('/get/member/job_provider', type='http', auth='none', methods=['GET'], csrf=False)

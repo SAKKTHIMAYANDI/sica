@@ -1,5 +1,13 @@
+
+import firebase_admin
+from firebase_admin import messaging
+from firebase_admin._messaging_utils import UnregisteredError
+import logging
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
+
+
+_logger = logging.getLogger(__name__)
 
 class MemberJobProvider(models.Model):
     _name = 'member.job.provider'
@@ -80,4 +88,52 @@ class MemberJobProvider(models.Model):
                 'res_model': 'member.job.seeker',
                 'domain': [('id', 'in', job_seeker_ids)],
             }
+        
+    def send_push_to_job_seekers(self):
+            """Send push notification to matching Job Seekers when a new provider posts a job."""
+            for provider in self:
+                # Find matching job seekers (active + matching post or skills)
+                matching_seekers = self.env['member.job.seeker'].sudo().search([
+                    ('state', '=', 'active'),
+                    ('till_date', '>=', fields.Date.today()),
+                    '|',
+                        ('skill_ids', 'in', provider.skill_ids.ids),
+                        ('post_applying_id', '=', provider.post_required_id.id)
+                ])
 
+                if not matching_seekers:
+                    _logger.info("No matching seekers for provider %s", provider.name)
+                    continue
+
+                # Prepare push content
+                title = "New Job Opportunity"
+                body = f"{provider.member_name} is hiring for {provider.post_required_id.name or 'a position'}"
+                category_id = provider.post_required_id.id or 0
+                source = "Job Provider Post"
+                send_url = f"https://new.thesica.in/homepage/jobprovider/details/:{provider.id}?category_id={category_id}"
+
+                # Log the push
+                self.env['push.notification.log.history'].sudo().create({
+                    'source': source,
+                    'date_send': fields.Datetime.now(),
+                })
+
+                # Send push to each matching seeker
+                for seeker in matching_seekers:
+                    if seeker.member_id and seeker.member_id.token:
+                        try:
+                            message = messaging.Message(
+                                token=seeker.member_id.token,
+                                notification=messaging.Notification(
+                                    title=title,
+                                    body=body,
+                                ),
+                                data={"url": send_url}
+                            )
+                            response = messaging.send(message)
+                            _logger.info(f"Push sent to seeker {seeker.member_name}: {response}")
+                        except UnregisteredError:
+                            _logger.warning(f"Unregistered token for {seeker.member_name}")
+                            seeker.member_id.token = False
+                        except Exception as e:
+                            _logger.error(f"Failed to send push to {seeker.member_name}: {str(e)}")

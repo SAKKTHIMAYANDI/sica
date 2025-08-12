@@ -1,0 +1,6 @@
+member_management_system/data/serviceAccountKey.json
+*.json
+*.env
+*.pem
+*.key
+firebase_push_notification/data/serviceAccountKey.json

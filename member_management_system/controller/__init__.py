@@ -16,4 +16,4 @@ from . import sica_support
 from . import firebase_token
 from . import mmme
 from . import movie_list
-from . import job_list
+from . import job_list, member

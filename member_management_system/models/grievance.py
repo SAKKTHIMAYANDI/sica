@@ -1,5 +1,10 @@
 from odoo import models, fields, api, tools, _
 from odoo.exceptions import UserError
+from firebase_admin import messaging
+from firebase_admin._messaging_utils import UnregisteredError
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class GrievanceReason(models.Model):
     _name = 'grievance.reason'
@@ -73,10 +78,69 @@ class DailyShootingUpdate(models.Model):
     grievance_reason_id = fields.Many2one('grievance.reason')
     member_id = fields.Many2one('res.member')
 
+    # Approval fields
+    is_dop_approved = fields.Boolean(string="DoP Approved", tracking=True)
+    is_admin_approved = fields.Boolean(string="SICA Admin Approved", tracking=True)
+
+
     @api.model
     def create(self, vals):
         if not vals.get('reference') or vals['reference'] == _('/'):
             vals['reference'] = self.env['ir.sequence'].next_by_code('shooting.update') or _('/')
         return super(DailyShootingUpdate, self).create(vals)
+    
+    def action_approve_dop(self):
+        for record in self:
+            record.is_dop_approved = True
+
+            title = "Shooting Update Approved"
+            body = f"The shooting update '{record.reference}' has been approved by DoP."
+            source = "DoP Approval"
+
+            record.update_notification(title, body, source)
 
 
+    def action_approve_admin(self):
+        for record in self:
+            record.is_admin_approved = True
+
+            title = "Shooting Update Approved"
+            body = f"The shooting update '{record.reference}' has been approved by DoP."
+            source = "Admin Approval"
+
+            record.update_notification(title, body, source)
+
+        
+    def update_notification(self, title, body, source):
+            _logger.info(f"Sending push notification for DailyShootingUpdate: {title}")
+            print("11111111111111111111111111111111111111111111111")
+            print("Title: ",title, body, source)
+            # Log the push notification history
+            self.env['push.notification.log.history'].sudo().create({
+                'source': source,
+                'date_send': fields.Datetime.now(),
+            })
+
+            # Example URL - customize for your frontend
+            send_id = f"https://new.thesica.in/homepage/dailyshooting/details/?id={self.id}"
+
+            print("send_id: ",send_id)
+
+            members = self.env['res.member'].sudo().search([('token', '!=', False)])
+            for member in members:
+                try:
+                    message = messaging.Message(
+                        token=member.token,
+                        notification=messaging.Notification(
+                            title=title,
+                            body=body,
+                        ),
+                        data={"url": send_id}
+                    )
+                    response = messaging.send(message)
+                    _logger.info(f"Push sent to {member.name} ({member.membership_no}): {response}")
+                except UnregisteredError:
+                    _logger.warning(f"Unregistered token: {member.name}")
+                    member.token = False
+                except Exception as e:
+                    _logger.error(f"Push failed for {member.name}: {str(e)}")

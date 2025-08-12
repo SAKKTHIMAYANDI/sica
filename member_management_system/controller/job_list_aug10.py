@@ -94,18 +94,14 @@ class JobList(http.Controller):
                 result.append({
                     "id": rec.id,
                     "description": rec.note,
-                    **({"mobile_number":""} if rec.mobile_number is False else {"mobile_number": rec.mobile_number}),
-                    # "mobile_number": rec.mobile_number,
-                    # "designation": rec.grade,
-                    **({"designation":"Active"} if rec.grade is False else {"designation": rec.grade}),
-
-                    # "experience": rec.experience,
-                    **({"experience":"Active"} if rec.experience is False else {"experience": rec.experience}),
+                    "mobile_number": rec.mobile_number,
+                    "designation": rec.designation,
+                    "experience": rec.experience,
                     "skills": [skill.name for skill in rec.skill_ids],
                     "project_requirements": [proj.name for proj in rec.project_requirement],
                     "available_start_date": rec.available_start_date.strftime('%Y-%m-%d') if rec.available_start_date else None,
                     "available_end_date": rec.available_end_date.strftime('%Y-%m-%d') if rec.available_end_date else None,
-                    "state": rec.state.capitalize(),
+                    "state": rec.state,
                 })
 
             return {
